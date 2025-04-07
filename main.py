@@ -11,6 +11,7 @@ from telegram.ext import (
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+openai.api_key = OPENAI_API_KEY
 
 # Configurar cliente de OpenAI con la nueva API
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
