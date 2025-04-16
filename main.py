@@ -54,7 +54,7 @@ def main():
     app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        webhook_url="https://www.inmigrantex.online/webhook"
+        webhook_url="https://ruffi-telegram-production-2760.up.railway.app/webhook"
     )
 
 if __name__ == "__main__":
