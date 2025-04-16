@@ -11,7 +11,7 @@ openai.api_key = OPENAI_API_KEY
 # Mensaje de bienvenida
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "¡Hola! Soy *RUFFI*, tu asistente virtual para temas de inmigración en España 🇪🇸.\n\n"
+        "¡Hola! Soy *RUFFI*, tu asistente virtual para temas de formación e inmigración en España 🇪🇸.\n\n"
         "Puedes preguntarme lo que necesites, y te responderé con gusto 😊.",
         parse_mode='Markdown'
     )
