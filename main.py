@@ -50,7 +50,7 @@ def main():
     app_bot.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        webhook_url="https://railway.com/project/9e8cc375-ce76-433f-a18e-e6adfc541b70/service/1b642220-a8f7-4e08-b084-9708f632e6b0?environmentId=7393bd99-30b6-484b-88a3-0e13a4bde7ae&id=a5d5b04a-b3d6-4c02-921a-8f131665f82f#deploy"
+        webhook_url="https://railway.com/project/9e8cc375-ce76-433f-a18e-e6adfc541b70/service/1b642220-a8f7-4e08-b084-9708f632e6b0?environmentId=7393bd99-30b6-484b-88a3-0e13a4bde7ae&id=a5d5b04a-b3d6-4c02-921a-8f131665f82f#deploy/webhook"
     )
 
 if __name__ == "__main__":
