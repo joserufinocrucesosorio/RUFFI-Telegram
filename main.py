@@ -47,7 +47,8 @@ def main():
 
     # Ejecutar bot en modo webhook
     PORT = int(os.environ.get("PORT", 8443))
-    app_bot.run_webhook(
+    
+    app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
         webhook_url="https://ruffi-telegram-production-2760.up.railway.app/webhook"
