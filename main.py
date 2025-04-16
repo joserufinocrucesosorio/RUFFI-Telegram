@@ -1,58 +1,26 @@
-import os
-import logging
-from flask import Flask, request
 from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
-)
+from telegram.ext import ContextTypes
 
-# Configuración de logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
+# Diccionario en memoria; para producción usa SQLite o Redis
+sessions = {}  # { telegram_user_id: expire_timestamp }
 
-# Variables de entorno
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_KEY = os.getenv("OPENAI_KEY")
-
-# Instancia de Flask
-app = Flask(__name__)
-
-# Comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Hola, soy RUFFI. ¿En qué puedo ayudarte hoy?")
-
-# Manejo de mensajes normales
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.lower()
-    chat_id = update.message.chat_id
-
-    if "residencia" in text:
-        respuesta = "Para renovar tu residencia temporal, visita: https://sede.administracionespublicas.gob.es"
-    else:
-        respuesta = "Recibido. Pronto te daré más información."
-
-    await context.bot.send_message(chat_id=chat_id, text=respuesta)
-
-# Main
-def main():
-    app_bot = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    app_bot.add_handler(CommandHandler("start", start))
-    app_bot.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Ejecutar bot en modo webhook
-    PORT = int(os.environ.get("PORT", 8443))
-    
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url="https://ruffi-telegram-production-2760.up.railway.app/webhook"
+    user_id = update.effective_user.id
+    args = context.args  # Lista de strings tras `/start `
+    if args:
+        token = args[0]
+        # TODO: validar token con tu base de datos de pagos
+        if validar_token(token, user_id):
+            expire = datetime.utcnow() + timedelta(minutes=5)
+            sessions[user_id] = expire
+            await update.message.reply_text(
+                "¡Tu consulta comienza ahora! Tienes 5 min para preguntar. 😊"
+            )
+            return
+        else:
+            await update.message.reply_text("Token inválido o ya usado. Por favor, paga de nuevo.")
+            return
+    # Si no hay args, indica cómo empezar
+    await update.message.reply_text(
+        "Para iniciar la consulta, realiza el pago en la web y pulsa el botón que te llevará aquí."
     )
-
-if __name__ == "__main__":
-    main()
