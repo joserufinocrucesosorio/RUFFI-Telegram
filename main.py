@@ -56,7 +56,7 @@ def main():
     app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        webhook_url="https://inmigrantex.online"
+        webhook_url="https://inmigrantex.online/webhook"
     )
 
 if __name__ == "__main__":
