@@ -1,50 +1,25 @@
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 import os
-import openai
-from flask import Flask, request
-from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 
-# Obtener variables de entorno
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+TOKEN = os.getenv("TELEGRAM_TOKEN")  # Asegúrate de tener la variable de entorno configurada
 
-# Asignar API key a OpenAI
-openai.api_key = OPENAI_API_KEY
-
-# Crear Flask app
-flask_app = Flask(__name__)
-
-# Crear instancia del bot
-bot = Bot(token=BOT_TOKEN)
-application = ApplicationBuilder().token(BOT_TOKEN).build()
-
-# Comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hola, soy RUFFI 🤖. ¿En qué puedo ayudarte hoy?")
+    await update.message.reply_text("¡Hola! Soy RUFFI, tu asistente virtual.")
 
-# Mensaje general
-async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_input = update.message.text
+def main():
+    app = Application.builder().token(TOKEN).build()
 
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",  # o "gpt-4" si tienes acceso
-        messages=[{"role": "user", "content": user_input}]
+    # Handlers
+    app.add_handler(CommandHandler("start", start))
+
+    # Webhook settings
+    port = int(os.environ.get("PORT", 8443))
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=port,
+        webhook_url="https://webhook.inmigrantex.online",  # Aquí se conecta con tu subdominio
     )
 
-    reply = response["choices"][0]["message"]["content"]
-    await update.message.reply_text(reply)
-
-# Registrar handlers
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
-
-# Ruta para recibir datos de Telegram
-@flask_app.route(f"/{BOT_TOKEN}", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    application.update_queue.put(update)
-    return "OK", 200
-
-# Iniciar la app Flask
-if __name__ == "__main__":
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+if __name__ == '__main__':
+    main()
