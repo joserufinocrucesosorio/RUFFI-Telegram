@@ -1,9 +1,9 @@
 import os
 import openai
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-# Carga de variables de entorno
+# Variables de entorno
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
@@ -11,38 +11,30 @@ openai.api_key = OPENAI_API_KEY
 # Comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "¡Hola! Soy *RUFFI*, tu asistente virtual para temas de inmigración en España 🇪🇸.\n\n"
-        "Puedes preguntarme lo que necesites, y te responderé con gusto 😊.",
-        parse_mode="Markdown"
+        "👋 ¡Hola! Soy *RUFFI*, tu asistente virtual sobre inmigración en España 🇪🇸.\n\n"
+        "Puedes preguntarme sobre trámites, residencia, nacionalidad, etc. Estoy aquí para ayudarte.",
+        parse_mode='Markdown'
     )
 
-# Manejo de mensajes de texto
+# Manejo de mensajes de texto normales
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text
     chat_id = update.effective_chat.id
 
     try:
-        # Consulta a OpenAI
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {
-                    "role": "system",
-                    "content": "Responde como un asistente especializado en inmigración en España, con tono profesional y empático."
-                },
-                {
-                    "role": "user",
-                    "content": user_input
-                }
+                {"role": "system", "content": "Responde como un experto en inmigración en España, con tono profesional, claro y empático."},
+                {"role": "user", "content": user_input}
             ]
         )
-
-        answer = response.choices[0].message.content
-        await context.bot.send_message(chat_id=chat_id, text=answer)
+        reply = response.choices[0].message.content
+        await context.bot.send_message(chat_id=chat_id, text=reply)
 
     except Exception as e:
-        await context.bot.send_message(chat_id=chat_id, text="⚠️ Lo siento, ha ocurrido un error.")
-        print("Error:", e)
+        await context.bot.send_message(chat_id=chat_id, text="⚠️ Lo siento, ha ocurrido un error interno.")
+        print("Error al procesar mensaje:", e)
 
 # Función principal
 def main():
@@ -57,8 +49,8 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Webhook
-    PORT = int(os.environ.get('PORT', 8443))
+    # Webhook con dominio propio
+    PORT = int(os.environ.get("PORT", 8443))
     app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
