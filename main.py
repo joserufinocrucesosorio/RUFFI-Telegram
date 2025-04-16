@@ -1,57 +1,53 @@
 import os
-import openai
+import logging
+from flask import Flask, request
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
-# Variables de entorno
+# Configuración de logging (opcional para ver logs)
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+
+# Claves de entorno
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-openai.api_key = OPENAI_API_KEY
+OPENAI_KEY = os.getenv("OPENAI_KEY")
 
-# Comando /start
+# Instancia de Flask (opcional, en esta versión no la usamos directamente)
+app = Flask(__name__)
+
+# Función para /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 ¡Hola! Soy *RUFFI*, tu asistente virtual sobre inmigración en España 🇪🇸.\n\n"
-        "Puedes preguntarme sobre trámites, residencia, nacionalidad, etc. Estoy aquí para ayudarte.",
-        parse_mode='Markdown'
-    )
+    await update.message.reply_text("👋 Hola, soy RUFFI. ¿En qué puedo ayudarte hoy?")
 
-# Manejo de mensajes de texto normales
+# Función para mensajes normales
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_input = update.message.text
-    chat_id = update.effective_chat.id
-
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Responde como un experto en inmigración en España, con tono profesional, claro y empático."},
-                {"role": "user", "content": user_input}
-            ]
-        )
-        reply = response.choices[0].message.content
-        await context.bot.send_message(chat_id=chat_id, text=reply)
-
-    except Exception as e:
-        await context.bot.send_message(chat_id=chat_id, text="⚠️ Lo siento, ha ocurrido un error interno.")
-        print("Error al procesar mensaje:", e)
+    text = update.message.text
+    chat_id = update.message.chat.id
+    # Respuesta automática básica (puedes mejorar con IA)
+    if "residencia" in text.lower():
+        reply = "Para renovar tu residencia temporal, visita la sede electrónica de extranjería: https://sede.administracionespublicas.gob.es"
+    else:
+        reply = "Recibido. Pronto te daré más información."
+    await context.bot.send_message(chat_id=chat_id, text=reply)
 
 # Función principal
 def main():
-    if not TELEGRAM_TOKEN:
-        raise ValueError("❌ TELEGRAM_TOKEN no está definido. Verifica tus variables de entorno en Railway.")
-    if not OPENAI_API_KEY:
-        raise ValueError("❌ OPENAI_API_KEY no está definido. Verifica tus variables de entorno en Railway.")
+    app_bot = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    # Comandos
+    app_bot.add_handler(CommandHandler("start", start))
 
-    # Handlers
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # Mensajes normales que no son comandos
+    app_bot.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Webhook con dominio propio
+    # Webhook directo en Railway
     PORT = int(os.environ.get("PORT", 8443))
-    app.run_webhook(
+    app_bot.run_webhook(
         listen="0.0.0.0",
         port=PORT,
         webhook_url="https://ruffi-telegram-production-2760.up.railway.app/webhook"
