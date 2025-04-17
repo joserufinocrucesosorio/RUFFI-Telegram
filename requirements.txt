@@ -1,4 +1,3 @@
-python-telegram-bot[webhooks]==20.7
-flask
+python-telegram-bot[webhooks]==20.8
+stripe
 openai
-

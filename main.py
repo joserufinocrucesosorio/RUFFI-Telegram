@@ -1,113 +1,108 @@
+"""
+RUFFI – bot de Telegram con pago por sesión de 5 min
+Versión PTB 20.8 – 17 abr 2025
+"""
+
 import os
 import logging
 from datetime import datetime, timedelta
+from typing import Dict
 
 import openai
+import stripe
 from telegram import Update
 from telegram.ext import (
-    ApplicationBuilder,
+    Application,
     CommandHandler,
     MessageHandler,
     ContextTypes,
     filters,
 )
 
-# ─── Configuración básica ───────────────────────────────────────────────────────
+# ─── Config ────────────────────────────────────────────────────────────────────
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
+    format="%(asctime)s — %(name)s — %(levelname)s — %(message)s",
+    level=logging.INFO,
 )
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_KEY     = os.getenv("OPENAI_KEY")
-WEBHOOK_URL    = os.getenv("WEBHOOK_URL", "https://webhook.inmigrantex.online/webhook")
+TELEGRAM_TOKEN  = os.getenv("TELEGRAM_TOKEN")
+OPENAI_KEY      = os.getenv("OPENAI_KEY")
+STRIPE_SECRET   = os.getenv("STRIPE_SECRET_KEY")
+WEBHOOK_URL     = os.getenv(
+    "WEBHOOK_URL",
+    "https://ruffi-telegram-production-c936.up.railway.app/webhook",
+)
 
-openai.api_key = OPENAI_KEY
+openai.api_key  = OPENAI_KEY
+stripe.api_key  = STRIPE_SECRET
 
-# Sesiones temporales de 5 minutos tras pago
-sessions: dict[int, datetime] = {}
+sessions: Dict[int, datetime] = {}        # user_id → expiry UTC
 
-# ─── Handlers ───────────────────────────────────────────────────────────────────
+# ─── Stripe helper ─────────────────────────────────────────────────────────────
+def validar_token(session_id: str, tg_user_id: int) -> bool:
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+        if session.payment_status != "paid":
+            return False
+        # TODO: marcar session_id como usado por tg_user_id en BD
+        return True
+    except Exception as exc:
+        logging.error("Stripe error: %s", exc)
+        return False
 
-async def token_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ /start <token> : inicia la sesión si el token es válido """
+# ─── Handlers ──────────────────────────────────────────────────────────────────
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     args = context.args
 
-    if args:
-        token = args[0]
-        # Aquí valida tu token contra la base de datos de pagos
-        if validar_token(token, user_id):
-            expires = datetime.utcnow() + timedelta(minutes=5)
-            sessions[user_id] = expires
-            await update.message.reply_text(
-                "✅ Sesión iniciada. Tienes **5 min** para tu consulta."
-            )
-        else:
-            await update.message.reply_text(
-                "❌ Token inválido o ya usado. Por favor, paga de nuevo."
-            )
+    if args and validar_token(args[0], user_id):
+        sessions[user_id] = datetime.utcnow() + timedelta(minutes=5)
+        await update.message.reply_text(
+            "✅ Pago confirmado. ¡Tienes 5 min para tu consulta!"
+        )
     else:
         await update.message.reply_text(
-            "Para empezar, paga en la web y pulsa el botón de Telegram."
+            "🔗 Primero paga en https://inmigrantex.online y luego toca el botón que te llevará aquí."
         )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ Responde a cada mensaje comprobando primero el tiempo de sesión """
     user_id = update.effective_user.id
-    now = datetime.utcnow()
     expires = sessions.get(user_id)
 
-    if not expires or now > expires:
+    if not expires or datetime.utcnow() > expires:
         return await update.message.reply_text(
-            "⏰ Tu tiempo expiró. Vuelve a pagar en:\nhttps://inmigrantex.online"
+            "⏰ Tu tiempo expiró. Vuelve a pagar en https://inmigrantex.online"
         )
 
     prompt = update.message.text
-    # Llamada a OpenAI
     try:
         resp = openai.ChatCompletion.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
         )
-        reply_text = resp.choices[0].message.content
-    except Exception as e:
-        logging.error("OpenAI error: %s", e)
-        reply_text = "Lo siento, no pude procesar tu petición."
+        answer = resp.choices[0].message.content
+    except Exception as exc:
+        logging.error("OpenAI error: %s", exc)
+        answer = "Lo siento, hubo un problema al procesar tu pregunta."
 
-    # Enviar texto
-    await update.message.reply_text(reply_text)
+    await update.message.reply_text(answer)
 
-    # TODO: aquí podrías generar voz (por ejemplo con ElevenLabs)
-    # y enviarla con `await update.message.reply_voice(voice=bytes_audio)`
-
-# ─── Función de validación de token (placeholder) ───────────────────────────────
-
-def validar_token(token: str, user_id: int) -> bool:
-    """
-    Comprueba en tu base de datos que el token es válido y pertenece a este usuario.
-    Devuelve True una sola vez; marca el token como usado.
-    """
-    # Aquí tu lógica: consulta SQL, Redis, etc.
-    return True  # para pruebas iniciales
-
-# ─── Configuración y arranque del bot en modo webhook ───────────────────────────
-
+# ─── Main ──────────────────────────────────────────────────────────────────────
 def main():
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    if not TELEGRAM_TOKEN:
+        raise RuntimeError("Falta TELEGRAM_TOKEN en variables de entorno")
 
-    app.add_handler(CommandHandler("start", token_start))
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Registra el webhook en Telegram
-    app.bot.set_webhook(WEBHOOK_URL)
-
-    # Inicia el servidor webhook
-    port = int(os.environ.get("PORT", "8443"))
+    port = int(os.getenv("PORT", "8443"))
     app.run_webhook(
         listen="0.0.0.0",
         port=port,
-        webhook_url=WEBHOOK_URL
+        url_path="webhook",
+        webhook_url=WEBHOOK_URL,
     )
 
 if __name__ == "__main__":
