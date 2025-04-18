@@ -77,9 +77,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = update.message.text
     try:
         resp = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-        )
+    model="gpt-4o-mini",
+    messages=[
+        {
+          "role": "system",
+          "content": (
+            "Eres RUFFI, un asistente virtual experto en inmigración en España. "
+            "Dispones de información actualizada sobre trámites, derechos, "
+            "ayuda legal y orientación para inmigrantes. Responde siempre "
+            "de forma clara, precisa y siguiendo las leyes españolas vigentes."
+          )
+        },
+        {"role": "user", "content": prompt},
+    ],
+)
+
         answer = resp.choices[0].message.content
     except Exception as exc:
         logging.error("OpenAI error: %s", exc)
