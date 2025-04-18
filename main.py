@@ -51,20 +51,38 @@ def validar_token(session_id: str, tg_user_id: int) -> bool:
         return False
 
 # ─── Handlers ──────────────────────────────────────────────────────────────────
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    args = context.args
+from datetime import datetime, timedelta
 
-    if args and validar_token(args[0], user_id):
-        sessions[user_id] = datetime.utcnow() + timedelta(minutes=5)
+# Diccionario global para controlar expiraciones: chat_id → fecha_expiración UTC
+sessions: Dict[int, datetime] = {}
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    args = context.args  # aquí Telegram mete el payload de ?start=
+
+    # 1) Si no hay token, invitación a pagar
+    if not args:
         await update.message.reply_text(
-            "✅ Pago confirmado. ¡Tienes 5 min para tu consulta!"
+            "🔗 Primero paga en https://inmigrantex.online y pulsa el botón de Telegram para empezar."
+        )
+        return
+
+    token = args[0]
+
+    # 2) Validar el token contra Stripe y evitar doble uso
+    if await validar_token(token, chat_id):
+        # 3) Guardar expiración (ahora + 5 min)
+        sessions[chat_id] = datetime.utcnow() + timedelta(minutes=5)
+        await update.message.reply_text(
+            "✅ Pago recibido: tu consulta está activa 5 min. ¿En qué puedo ayudarte?"
         )
     else:
+        # 4) Si ya estuvo en sessions pero expiró, o token inválido
         await update.message.reply_text(
-            "🔗 Primero paga en https://inmigrantex.online y luego toca el botón que te llevará aquí."
+            "⏰ Tu tiempo expiró. Vuelve a pagar en https://inmigrantex.online"
         )
 
+# Expiración de la sesión: 5 minutos
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     expires = sessions.get(user_id)
